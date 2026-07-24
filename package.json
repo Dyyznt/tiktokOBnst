@@ -1,0 +1,9 @@
+{
+  "name": "orbinest",
+  "version": "1.0.0",
+  "private": true,
+  "description": "OrbiNest (OBNEST) — TikTok video downloader with full metadata, no watermark by default.",
+  "scripts": {
+    "dev": "vercel dev"
+  }
+}
