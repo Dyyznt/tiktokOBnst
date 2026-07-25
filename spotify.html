@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OrbiNest — Spotify Downloader</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#19191B;
+    --surface:#202124;
+    --surface-2:#28292D;
+    --border:#333438;
+    --text:#EDEDEF;
+    --text-dim:#9A9BA1;
+    --text-faint:#6B6C72;
+    --accent:#D8D9DC;
+    --accent-text:#1A1A1C;
+    --accent-dim:#C7C8CC;
+    --danger:#E5484D;
+    --danger-rgb:229,72,77;
+    --success:#3DD68C;
+    --radius:16px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:32px 16px 96px;
+    -webkit-text-size-adjust:100%;
+    -webkit-tap-highlight-color:transparent;
+    -webkit-font-smoothing:antialiased;
+    -moz-osx-font-smoothing:grayscale;
+  }
+  .wrap{width:100%;max-width:560px;}
+
+  .back-btn{
+    display:inline-flex;align-items:center;gap:6px;color:var(--text-dim);
+    text-decoration:none;font-size:13px;font-weight:500;margin-bottom:20px;
+  }
+  .back-btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+  .back-btn:hover{color:var(--text);}
+
+  header{display:flex;flex-direction:column;align-items:center;margin-bottom:28px;text-align:center;}
+  h1{font-family:'Space Grotesk',sans-serif;font-size:21px;font-weight:600;letter-spacing:-0.01em;}
+  header p{color:var(--text-dim);font-size:13.5px;margin-top:7px;max-width:320px;line-height:1.5;}
+
+  .card{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:20px;
+    box-shadow:0 1px 0 rgba(255,255,255,.02) inset, 0 8px 24px rgba(0,0,0,.18);
+  }
+  .input-row{display:flex;gap:8px;}
+  input[type=text]{
+    flex:1;min-width:0;background:var(--surface-2);border:1px solid var(--border);
+    color:var(--text);border-radius:10px;padding:13px 14px;font-size:14px;
+    font-family:'Inter',sans-serif;outline:none;transition:border-color .15s;
+  }
+  input[type=text]:focus{border-color:var(--accent);}
+  input[type=text]::placeholder{color:var(--text-faint);}
+
+  button{
+    font-family:'Inter',sans-serif;font-weight:600;font-size:14px;
+    border:none;border-radius:10px;cursor:pointer;transition:opacity .15s, transform .1s;
+  }
+  button:active{transform:scale(0.97);}
+  .btn-primary{
+    background:var(--accent);color:var(--accent-text);padding:13px 16px;white-space:nowrap;
+  }
+  .btn-primary:disabled{opacity:.5;cursor:not-allowed;}
+  .btn-primary:hover:not(:disabled){background:var(--accent-dim);}
+
+  .hint{color:var(--text-faint);font-size:12px;margin-top:10px;}
+
+  .status{
+    display:none;align-items:center;gap:10px;margin-top:18px;
+    color:var(--text-dim);font-size:13.5px;
+  }
+  .status.show{display:flex;}
+  .spinner{
+    width:14px;height:14px;border:2px solid var(--border);
+    border-top-color:var(--accent);border-radius:50%;
+    animation:spin2 .7s linear infinite;
+  }
+  @keyframes spin2{to{transform:rotate(360deg);}}
+  .status.error{color:var(--danger);}
+
+  .spotify-result{margin-top:18px;display:none;}
+  .spotify-result.show{display:block;}
+  .spotify-track{display:flex;gap:12px;align-items:center;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:12px;}
+  .spotify-track img{width:56px;height:56px;border-radius:8px;object-fit:cover;background:var(--bg);flex-shrink:0;}
+  .spotify-track-title{font-size:13.5px;font-weight:600;}
+  .spotify-track-artist{font-size:12px;color:var(--text-dim);margin-top:2px;}
+
+  .dl-btn{
+    display:flex;align-items:center;justify-content:center;gap:8px;
+    background:var(--accent);border:1px solid var(--accent);color:var(--accent-text);
+    padding:13px 16px;border-radius:10px;text-decoration:none;font-size:13.5px;font-weight:600;
+  }
+  .dl-btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+
+  footer{margin-top:44px;color:var(--text-faint);font-size:12px;text-align:center;}
+
+  /* Overlay proses download: muncul saat request ke proxy berjalan,
+     mengunci seluruh interaksi supaya tidak ada request ganda dan
+     pengguna tetap di halaman ini sampai file selesai diproses. */
+  .wrap.locked{pointer-events:none;user-select:none;}
+  .dl-overlay{
+    position:fixed;inset:0;background:rgba(0,0,0,.55);
+    display:none;align-items:center;justify-content:center;
+    z-index:9999;padding:16px;pointer-events:auto;
+  }
+  .dl-overlay.show{display:flex;}
+  .dl-overlay-box{
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    padding:24px 28px;display:flex;flex-direction:column;align-items:center;gap:14px;
+    box-shadow:0 8px 24px rgba(0,0,0,.35);max-width:280px;text-align:center;
+  }
+  .dl-overlay-spinner{width:22px;height:22px;border-width:3px;}
+  .dl-overlay-text{font-size:13.5px;color:var(--text-dim);line-height:1.5;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a href="index.html" class="back-btn">
+    <svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
+    Kembali
+  </a>
+
+  <header>
+    <h1>Spotify Downloader</h1>
+    <p>Tempelkan link track Spotify untuk mengunduh dalam format MP3.</p>
+  </header>
+
+  <div class="card">
+    <div class="input-row">
+      <input type="text" id="spotifyUrlInput" placeholder="https://open.spotify.com/track/...">
+      <button class="btn-primary" id="spotifySubmitBtn">Download</button>
+    </div>
+    <div class="hint">Contoh: https://open.spotify.com/track/xxxxxxxxxx</div>
+
+    <div class="status" id="spotifyStatus">
+      <div class="spinner"></div>
+      <span id="spotifyStatusText">Processing...</span>
+    </div>
+
+    <div class="spotify-result" id="spotifyResult"></div>
+  </div>
+
+  <footer>OrbiNest 𖤛</footer>
+</div>
+
+<div class="dl-overlay" id="dlOverlay" aria-hidden="true">
+  <div class="dl-overlay-box">
+    <div class="spinner dl-overlay-spinner"></div>
+    <div class="dl-overlay-text" id="dlOverlayText">Sedang memproses file, mohon tunggu...</div>
+  </div>
+</div>
+
+<script>
+const spotifyUrlInput = document.getElementById('spotifyUrlInput');
+const spotifySubmitBtn = document.getElementById('spotifySubmitBtn');
+const spotifyStatus = document.getElementById('spotifyStatus');
+const spotifyStatusText = document.getElementById('spotifyStatusText');
+const spotifyResult = document.getElementById('spotifyResult');
+const dlOverlay = document.getElementById('dlOverlay');
+const dlOverlayText = document.getElementById('dlOverlayText');
+const wrapEl = document.querySelector('.wrap');
+
+let isProcessing = false;
+let lastBlobUrl = null;
+
+function setSpotifyStatus(text, isError){
+  spotifyStatus.classList.add('show');
+  spotifyStatus.classList.toggle('error', !!isError);
+  spotifyStatusText.textContent = text;
+  spotifyStatus.querySelector('.spinner').style.display = isError ? 'none' : 'block';
+}
+function clearSpotifyStatus(){
+  spotifyStatus.classList.remove('show','error');
+}
+function escapeHtml(s){
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+function decodeHeader(res, name, fallback){
+  const raw = res.headers.get(name);
+  if(!raw) return fallback;
+  try{ return decodeURIComponent(raw); }catch(_){ return fallback; }
+}
+
+// Mengunci seluruh interaksi halaman (tombol, input, navigasi) selama
+// proses download berjalan, supaya tidak ada request ganda dan pengguna
+// tidak bisa memicu aksi lain di tengah proses.
+function lockUI(message){
+  isProcessing = true;
+  dlOverlayText.textContent = message || 'Sedang memproses file, mohon tunggu...';
+  dlOverlay.classList.add('show');
+  dlOverlay.setAttribute('aria-hidden', 'false');
+  wrapEl.classList.add('locked');
+  spotifySubmitBtn.disabled = true;
+  spotifyUrlInput.disabled = true;
+}
+function unlockUI(){
+  isProcessing = false;
+  dlOverlay.classList.remove('show');
+  dlOverlay.setAttribute('aria-hidden', 'true');
+  wrapEl.classList.remove('locked');
+  spotifySubmitBtn.disabled = false;
+  spotifyUrlInput.disabled = false;
+}
+
+async function handleSpotifySubmit(){
+  if(isProcessing) return;
+
+  const url = spotifyUrlInput.value.trim();
+  if(!url){ setSpotifyStatus('Masukkan link Spotify terlebih dahulu.', true); return; }
+
+  spotifyResult.classList.remove('show');
+  spotifyResult.innerHTML = '';
+  clearSpotifyStatus();
+  if(lastBlobUrl){ URL.revokeObjectURL(lastBlobUrl); lastBlobUrl = null; }
+  lockUI('Sedang memproses file, mohon tunggu...');
+
+  try{
+    // Seluruh proses (resolve link + ambil file) terjadi di proxy.js
+    // (server), bukan di browser — jadi tidak pernah ada redirect atau
+    // perpindahan ke domain lain. Halaman ini tetap dipakai sepanjang proses.
+    const res = await fetch(`/api/proxy?service=spotify&url=${encodeURIComponent(url)}`);
+
+    if(!res.ok){
+      let msg = 'Gagal memproses link. Periksa kembali link Spotify.';
+      try{
+        const errData = await res.json();
+        if(errData && errData.message) msg = errData.message;
+      }catch(_){}
+      setSpotifyStatus(msg, true);
+      return;
+    }
+
+    const title = decodeHeader(res, 'X-Track-Title', 'Spotify Track');
+    const artist = decodeHeader(res, 'X-Track-Artist', '');
+    const image = decodeHeader(res, 'X-Track-Image', '');
+    const filename = decodeHeader(res, 'X-Track-Filename', 'spotify-track.mp3');
+
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    lastBlobUrl = blobUrl;
+
+    // Trigger unduhan otomatis dari blob same-origin — tidak pernah
+    // membuka tab baru maupun pindah domain.
+    const tempLink = document.createElement('a');
+    tempLink.href = blobUrl;
+    tempLink.download = filename;
+    document.body.appendChild(tempLink);
+    tempLink.click();
+    document.body.removeChild(tempLink);
+
+    clearSpotifyStatus();
+    spotifyResult.innerHTML = `
+      <div class="spotify-track">
+        ${image ? `<img src="${image}" alt="cover">` : ''}
+        <div>
+          <div class="spotify-track-title">${escapeHtml(title)}</div>
+          ${artist ? `<div class="spotify-track-artist">${escapeHtml(artist)}</div>` : ''}
+        </div>
+      </div>
+      <a class="dl-btn" href="${blobUrl}" download="${escapeHtml(filename)}">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M12 18v-6"/><path d="m9 15 3 3 3-3"/></svg>
+        Download MP3
+      </a>
+    `;
+    spotifyResult.classList.add('show');
+  }catch(err){
+    setSpotifyStatus('Terjadi kesalahan jaringan. Silakan coba lagi.', true);
+  }finally{
+    unlockUI();
+  }
+}
+spotifySubmitBtn.addEventListener('click', handleSpotifySubmit);
+spotifyUrlInput.addEventListener('keydown', e => { if(e.key === 'Enter' && !isProcessing) handleSpotifySubmit(); });
+window.addEventListener('beforeunload', () => { if(lastBlobUrl) URL.revokeObjectURL(lastBlobUrl); });
+</script>
+</body>
+</html>
